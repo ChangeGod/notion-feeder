@@ -12,7 +12,7 @@ jobs:
       NOTION_API_TOKEN: ntn_ZI930493154370T2BgfftIv4WbZJdEVMe7WdAjkmGWB6Pg
       NOTION_READER_DATABASE_ID: 1d20377632e28171b4b3e55f2e469673
       NOTION_FEEDS_DATABASE_ID: 1d20377632e2815d89bdda24df225826
-      RUN_FREQUENCY: 60 # in seconds
+      RUN_FREQUENCY: 600 # in seconds
     steps:
       - name: Setup Node
         uses: actions/setup-node@v2
