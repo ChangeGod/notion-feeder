@@ -9,9 +9,9 @@ jobs:
   get-feed:
     runs-on: ubuntu-latest
     env:
-      NOTION_API_TOKEN: ntn_ZI930493154370T2BgfftIv4WbZJdEVMe7WdAjkmGWB6Pg
-      NOTION_READER_DATABASE_ID: 1d20377632e28171b4b3e55f2e469673
-      NOTION_FEEDS_DATABASE_ID: 1d20377632e2815d89bdda24df225826
+      NOTION_API_TOKEN: ${{ secrets.NOTION_API_TOKEN }}
+      NOTION_READER_DATABASE_ID: ${{ secrets.NOTION_READER_DATABASE_ID }}
+      NOTION_FEEDS_DATABASE_ID: ${{ secrets.NOTION_FEEDS_DATABASE_ID }}
       RUN_FREQUENCY: 86400 # in seconds
     steps:
       - name: Setup Node
