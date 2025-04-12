@@ -49,45 +49,42 @@ export async function getFeedUrlsFromNotion() {
 export async function addFeedItemToNotion(notionItem) {
     const { title, link, content } = notionItem;
 
-  // 🔍 1. Check for duplicates by Link field
+  // 1. Query the DB to see if any page's title = the feed link
+  let existing;
   try {
-    const existing = await notion.databases.query({
+    existing = await notion.databases.query({
       database_id: NOTION_READER_DATABASE_ID,
       filter: {
-        property: 'Link',
-        url: {
+        property: 'Name',  // The Notion "title" property
+        title: {
           equals: link,
         },
       },
     });
-
-    if (existing.results.length > 0) {
-      console.log(`🔁 Skipped duplicate: ${title}`);
-      return;
-    }
   } catch (err) {
     console.error('❌ Error checking duplicates:', err);
+    return;
   }
 
-  // ✅ 2. Proceed to create page if not duplicate
+  // 2. If found, skip
+  if (existing.results.length > 0) {
+    console.log(`🔁 Skipped duplicate link: ${link}`);
+    return;
+  }
+
+  // 3. Create page
   try {
     await notion.pages.create({
-      parent: {
-        database_id: NOTION_READER_DATABASE_ID,
-      },
+      parent: { database_id: NOTION_READER_DATABASE_ID },
       properties: {
-        Title: {
+        Name: {
           title: [
             {
-              text: {
-                content: title,
-              },
+              text: { content: link },
             },
           ],
         },
-        Link: {
-          url: link,
-        },
+        // Optional additional properties ...
       },
       children: [
         {
@@ -106,7 +103,6 @@ export async function addFeedItemToNotion(notionItem) {
         },
       ],
     });
-
     console.log(`✅ Added: ${title}`);
   } catch (err) {
     console.error('❌ Error creating Notion page:', err);
