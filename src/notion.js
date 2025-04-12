@@ -49,34 +49,49 @@ export async function getFeedUrlsFromNotion() {
 export async function addFeedItemToNotion(notionItem) {
   const { title, link, content } = notionItem;
 
-  const notion = new Client({
-    auth: NOTION_API_TOKEN,
-    logLevel,
+  const notion = new Client({ auth: process.env.NOTION_API_TOKEN });
+
+  // 🔍 Step 1: Check if a page with this link already exists
+  const searchExisting = await notion.databases.query({
+    database_id: process.env.NOTION_READER_DATABASE_ID,
+    filter: {
+      property: 'Link', // assumes your database has a "Link" property
+      url: {
+        equals: link,
+      },
+    },
   });
 
+  if (searchExisting.results.length > 0) {
+    console.log(`❗️Skipped duplicate: ${title}`);
+    return; // 🚫 Don't insert duplicate
+  }
+
+  // ✅ Step 2: If not found, insert the feed item
   try {
     await notion.pages.create({
-      parent: {
-        database_id: NOTION_READER_DATABASE_ID,
-      },
+      parent: { database_id: process.env.NOTION_READER_DATABASE_ID },
       properties: {
         Title: {
-          title: [
-            {
-              text: {
-                content: title,
-              },
-            },
-          ],
+          title: [{ text: { content: title } }],
         },
         Link: {
           url: link,
         },
       },
-      children: content,
+      children: [
+        {
+          object: 'block',
+          type: 'paragraph',
+          paragraph: {
+            rich_text: [{ type: 'text', text: { content: content } }],
+          },
+        },
+      ],
     });
+    console.log(`✅ Added: ${title}`);
   } catch (err) {
-    console.error(err);
+    console.error('Error adding item:', err);
   }
 }
 
