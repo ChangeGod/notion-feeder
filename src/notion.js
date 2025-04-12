@@ -48,65 +48,63 @@ export async function getFeedUrlsFromNotion() {
 
 export async function addFeedItemToNotion(notionItem) {
     const { title, link, content } = notionItem;
-
-  // 1. Query the DB to see if any page's title = the feed link
-  let existing;
-  try {
-    existing = await notion.databases.query({
-      database_id: NOTION_READER_DATABASE_ID,
-      filter: {
-        property: 'Name',  // The Notion "title" property
-        title: {
-          equals: link,
-        },
+  const notion = new Client({
+    auth: NOTION_API_TOKEN,
+    logLevel,
+  });
+   // 1. Check if an item with this 'link' already exists
+  //    in the Notion 'READ' database
+  const existing = await notion.databases.query({
+    database_id: process.env.NOTION_READER_DATABASE_ID, // Change to your actual DB ID env var
+    filter: {
+      property: 'Link',
+      url: {
+        equals: link,
       },
-    });
-  } catch (err) {
-    console.error('❌ Error checking duplicates:', err);
-    return;
-  }
+    },
+  });
 
-  // 2. If found, skip
+  // 2. If found, skip creating a new page
   if (existing.results.length > 0) {
-    console.log(`🔁 Skipped duplicate link: ${link}`);
+    console.log(`Duplicate detected, skipping: ${title}`);
     return;
   }
 
-  // 3. Create page
-  try {
-    await notion.pages.create({
-      parent: { database_id: NOTION_READER_DATABASE_ID },
-      properties: {
-        Name: {
-          title: [
+  // 3. Otherwise, create a new page in the Notion DB
+  await notion.pages.create({
+    parent: { database_id: process.env.NOTION_READER_DATABASE_ID },
+    properties: {
+      // Make sure these property names match your Notion DB properties
+      Title: {
+        title: [
+          {
+            text: { content: title },
+          },
+        ],
+      },
+      Link: {
+        url: link,
+      },
+    },
+    children: [
+      {
+        object: 'block',
+        type: 'paragraph',
+        paragraph: {
+          rich_text: [
             {
-              text: { content: link },
+              type: 'text',
+              text: {
+                content: content || '',
+              },
             },
           ],
         },
-        // Optional additional properties ...
       },
-      children: [
-        {
-          object: 'block',
-          type: 'paragraph',
-          paragraph: {
-            rich_text: [
-              {
-                type: 'text',
-                text: {
-                  content: content,
-                },
-              },
-            ],
-          },
-        },
-      ],
-    });
-    console.log(`✅ Added: ${title}`);
-  } catch (err) {
-    console.error('❌ Error creating Notion page:', err);
-  }
+    ],
+  });
+
+  console.log(`Added new feed item: ${title}`);
 }
 
 export async function deleteOldUnreadFeedItemsFromNotion() {
