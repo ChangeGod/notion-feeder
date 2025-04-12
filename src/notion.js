@@ -51,26 +51,33 @@ export async function addFeedItemToNotion(notionItem) {
 
   const notion = new Client({ auth: process.env.NOTION_API_TOKEN });
 
-  // 🔍 Step 1: Check if a page with this link already exists
-  const searchExisting = await notion.databases.query({
-    database_id: process.env.NOTION_READER_DATABASE_ID,
-    filter: {
-      property: 'Link', // assumes your database has a "Link" property
-      url: {
-        equals: link,
+  // 🔍 Check for existing item with same URL
+  try {
+    const existing = await notion.databases.query({
+      database_id: process.env.NOTION_READER_DATABASE_ID,
+      filter: {
+        property: 'Link',
+        url: {
+          equals: link,
+        },
       },
-    },
-  });
+    });
 
-  if (searchExisting.results.length > 0) {
-    console.log(`❗️Skipped duplicate: ${title}`);
-    return; // 🚫 Don't insert duplicate
+    if (existing.results.length > 0) {
+      console.log(`⏩ Skipping duplicate: ${title}`);
+      return;
+    }
+  } catch (err) {
+    console.error('Error while checking for duplicates:', err);
+    return;
   }
 
-  // ✅ Step 2: If not found, insert the feed item
+  // ✅ Create new page
   try {
     await notion.pages.create({
-      parent: { database_id: process.env.NOTION_READER_DATABASE_ID },
+      parent: {
+        database_id: process.env.NOTION_READER_DATABASE_ID,
+      },
       properties: {
         Title: {
           title: [{ text: { content: title } }],
@@ -79,19 +86,29 @@ export async function addFeedItemToNotion(notionItem) {
           url: link,
         },
       },
-      children: [
-        {
-          object: 'block',
-          type: 'paragraph',
-          paragraph: {
-            rich_text: [{ type: 'text', text: { content: content } }],
-          },
-        },
-      ],
+      children: content
+        ? [
+            {
+              object: 'block',
+              type: 'paragraph',
+              paragraph: {
+                rich_text: [
+                  {
+                    type: 'text',
+                    text: {
+                      content: content,
+                    },
+                  },
+                ],
+              },
+            },
+          ]
+        : [],
     });
-    console.log(`✅ Added: ${title}`);
+
+    console.log(`✅ Added to Notion: ${title}`);
   } catch (err) {
-    console.error('Error adding item:', err);
+    console.error('Error while adding item:', err);
   }
 }
 
