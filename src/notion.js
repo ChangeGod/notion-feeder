@@ -12,31 +12,43 @@ const {
 
 const logLevel = CI ? LogLevel.INFO : LogLevel.DEBUG;
 
+export async function getExistingPages(items) {
+  const notion = new Client({
+    auth: NOTION_API_TOKEN,
+    logLevel,
+  });
+  const response = await notion.databases.query({
+    database_id: NOTION_READER_DATABASE_ID,
+    or: items.map((item) => ({
+      property: 'Link',
+      text: {
+        equals: item.link,
+      },
+    })),
+  });
+
+  return response.results;
+}
+
 export async function getFeedUrlsFromNotion() {
   const notion = new Client({
     auth: NOTION_API_TOKEN,
     logLevel,
   });
 
-  let response;
-  try {
-    response = await notion.databases.query({
-      database_id: NOTION_FEEDS_DATABASE_ID,
-      filter: {
-        or: [
-          {
-            property: 'Enabled',
-            checkbox: {
-              equals: true,
-            },
+  const response = await notion.databases.query({
+    database_id: NOTION_FEEDS_DATABASE_ID,
+    filter: {
+      or: [
+        {
+          property: 'Enabled',
+          checkbox: {
+            equals: true,
           },
-        ],
-      },
-    });
-  } catch (err) {
-    console.error(err);
-    return [];
-  }
+        },
+      ],
+    },
+  });
 
   const feeds = response.results.map((item) => ({
     title: item.properties.Title.title[0].plain_text,
@@ -47,38 +59,24 @@ export async function getFeedUrlsFromNotion() {
 }
 
 export async function addFeedItemToNotion(notionItem) {
-    const { title, link, content } = notionItem;
+  const { title, link, content } = notionItem;
+
   const notion = new Client({
     auth: NOTION_API_TOKEN,
     logLevel,
   });
-   // 1. Check if an item with this 'link' already exists
-  //    in the Notion 'READ' database
-  const existing = await notion.databases.query({
-    database_id: process.env.NOTION_READER_DATABASE_ID, // Change to your actual DB ID env var
-    filter: {
-      property: 'Link',
-      url: {
-        equals: link,
-      },
-    },
-  });
 
-  // 2. If found, skip creating a new page
-  if (existing.results.length > 0) {
-    console.log(`Duplicate detected, skipping: ${title}`);
-    return;
-  }
-
-  // 3. Otherwise, create a new page in the Notion DB
   await notion.pages.create({
-    parent: { database_id: process.env.NOTION_READER_DATABASE_ID },
+    parent: {
+      database_id: NOTION_READER_DATABASE_ID,
+    },
     properties: {
-      // Make sure these property names match your Notion DB properties
       Title: {
         title: [
           {
-            text: { content: title },
+            text: {
+              content: title,
+            },
           },
         ],
       },
@@ -86,28 +84,11 @@ export async function addFeedItemToNotion(notionItem) {
         url: link,
       },
     },
-    children: [
-      {
-        object: 'block',
-        type: 'paragraph',
-        paragraph: {
-          rich_text: [
-            {
-              type: 'text',
-              text: {
-                content: content || '',
-              },
-            },
-          ],
-        },
-      },
-    ],
+    children: content,
   });
-
-  console.log(`Added new feed item: ${title}`);
 }
 
-export async function deleteOldUnreadFeedItemsFromNotion() {
+export async function deleteOldUnreadItemsFromNotion() {
   const notion = new Client({
     auth: NOTION_API_TOKEN,
     logLevel,
@@ -119,44 +100,34 @@ export async function deleteOldUnreadFeedItemsFromNotion() {
 
   // Query the feed reader database
   // and fetch only those items that are unread or created before last 30 days
-  let response;
-  try {
-    response = await notion.databases.query({
-      database_id: NOTION_READER_DATABASE_ID,
-      filter: {
-        and: [
-          {
-            property: 'Created At',
-            date: {
-              on_or_before: fetchBeforeDate.toJSON(),
-            },
+  const response = await notion.databases.query({
+    database_id: NOTION_READER_DATABASE_ID,
+    filter: {
+      and: [
+        {
+          property: 'Created At',
+          date: {
+            on_or_before: fetchBeforeDate.toJSON(),
           },
-          {
-            property: 'Read',
-            checkbox: {
-              equals: false,
-            },
+        },
+        {
+          property: 'Read',
+          checkbox: {
+            equals: false,
           },
-        ],
-      },
-    });
-  } catch (err) {
-    console.error(err);
-    return;
-  }
+        },
+      ],
+    },
+  });
 
   // Get the page IDs from the response
   const feedItemsIds = response.results.map((item) => item.id);
 
   for (let i = 0; i < feedItemsIds.length; i++) {
     const id = feedItemsIds[i];
-    try {
-      await notion.pages.update({
-        page_id: id,
-        archived: true,
-      });
-    } catch (err) {
-      console.error(err);
-    }
+    await notion.pages.update({
+      page_id: id,
+      archived: true,
+    });
   }
 }
